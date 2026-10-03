@@ -16,11 +16,13 @@ use std::{any::Any, future::Future, pin::Pin};
 
 mod ledger;
 pub use ledger::{Event, Health, Ledger};
+mod report;
+pub use report::{ChannelActivity, PendingExport, Report, Reports};
 
 /// Everything one unit of work can do. Each area defines its traits in a
 /// module of its own and adds them here.
-pub trait Unit: Ledger + Health {}
-impl<T> Unit for T where T: ?Sized + Ledger + Health {}
+pub trait Unit: Ledger + Health + Reports {}
+impl<T> Unit for T where T: ?Sized + Ledger + Health + Reports {}
 
 /// A unit of work, type-erased so [`Store`] stays object safe.
 pub type Work = Box<dyn FnOnce(&mut dyn Unit) -> Result<Box<dyn Any + Send>> + Send>;
