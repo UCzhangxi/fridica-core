@@ -254,8 +254,11 @@ pub fn snapshot(request: &ParentRequest, decision: &Decision, budget: usize) -> 
         github.push(compact);
     }
     github.reverse();
+    let linked = linked(&session["linked_threads"], &mut truncated);
+    let linked_used: usize = linked.iter().map(|t| t.to_string().chars().count()).sum();
     // History takes what the fixed sections leave.
     let fixed = summary.chars().count()
+        + linked_used
         + used
         + notes.to_string().chars().count()
         + reply.chars().count()
@@ -304,12 +307,13 @@ pub fn snapshot(request: &ParentRequest, decision: &Decision, budget: usize) -> 
         results,
         files,
         github,
-        linked: linked(&session["linked_threads"], &mut truncated),
+        linked,
         truncated,
     }
 }
 
-/// Each linked thread's state, whole threads only, within `LINKED_CAP`.
+/// Each linked thread's state, whole threads only, within `LINKED_CAP`; it
+/// counts against the bundle's budget like the other fixed sections.
 fn linked(threads: &Value, truncated: &mut Vec<String>) -> Vec<Value> {
     let mut kept = vec![];
     let mut used = 0;

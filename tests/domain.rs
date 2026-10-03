@@ -306,3 +306,19 @@ fn rate_limits_are_a_failure_kind_with_a_reset_time_and_progress_has_limits() {
         (120., 1500)
     );
 }
+
+/// Linked threads count against the bundle's budget: history yields to them.
+#[test]
+fn linked_threads_count_against_the_fork_budget() {
+    use fridica_core::fork::{render, snapshot};
+    let mut request = linked_request();
+    request.history = (0..40)
+        .map(|n| json!({"ts":format!("{}.1",150+n),"sender":"U","text":"x".repeat(200)}))
+        .collect();
+    let with = snapshot(&request, &Decision::default(), 4000);
+    let mut without = request.clone();
+    without.session["linked_threads"] = json!([]);
+    let plain = snapshot(&without, &Decision::default(), 4000);
+    assert!(with.history.len() < plain.history.len());
+    assert!(render(&with).chars().count() <= 4000 + 2000);
+}
