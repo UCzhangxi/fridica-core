@@ -14,13 +14,18 @@
 use anyhow::Result;
 use std::{any::Any, future::Future, pin::Pin};
 
+mod events;
 mod ledger;
+pub use events::{FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackNames};
 pub use ledger::{Event, Health, Ledger};
 
 /// Everything one unit of work can do. Each area defines its traits in a
 /// module of its own and adds them here.
-pub trait Unit: Ledger + Health {}
-impl<T> Unit for T where T: ?Sized + Ledger + Health {}
+pub trait Unit: Ledger + Health + LedgerLookups + SlackNames + FeedLookups + GithubPause {}
+impl<T> Unit for T where
+    T: ?Sized + Ledger + Health + LedgerLookups + SlackNames + FeedLookups + GithubPause
+{
+}
 
 /// A unit of work, type-erased so [`Store`] stays object safe.
 pub type Work = Box<dyn FnOnce(&mut dyn Unit) -> Result<Box<dyn Any + Send>> + Send>;
