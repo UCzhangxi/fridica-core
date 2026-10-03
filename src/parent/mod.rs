@@ -164,6 +164,32 @@ pub struct Decision {
     pub asks: Vec<Ask>,
     #[serde(default)]
     pub reopen_blocked: bool,
+    #[serde(default)]
+    pub handoffs: Vec<Handoff>,
+}
+
+/// What a hand-off asks of another thread of the channel: take this into
+/// account (`context`), or post there (`post`). The target thread's own turn
+/// does it, with the source thread's state attached by the host.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HandoffKind {
+    #[default]
+    Context,
+    Post,
+}
+
+/// Information or a post that belongs in a linked thread (one of
+/// `session.linked_threads`, by its root timestamp).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Handoff {
+    pub thread: String,
+    pub kind: HandoffKind,
+    /// Why, and what the target thread should do or say.
+    pub note: String,
+    /// Obligations of this thread the target's post settles once delivered.
+    pub answers: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

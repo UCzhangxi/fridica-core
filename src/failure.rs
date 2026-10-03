@@ -17,6 +17,16 @@ pub fn blocked(invalid: bool) -> Decision {
         "note":{"kind":"status","blocker":text,"next_step":"Owner review before retrying"}}))
     .expect("fixed failure action")
 }
+/// The failure code of a parent call refused by the backend's usage limit.
+/// Temporary: the turn is retried after `RATE_LIMIT_RETRY`, without blocking
+/// the thread or asking for owner review.
+pub const RATE_LIMITED: &str = "parent_rate_limited";
+/// Seconds before a rate-limited parent turn is retried. A refused call costs
+/// nothing, so a short fixed wait reaches the reset soon after it.
+pub const RATE_LIMIT_RETRY: f64 = 600.;
+pub fn rate_limited(failure: &ParentFailure) -> bool {
+    failure.code == RATE_LIMITED
+}
 pub fn prevents_effects(failure: &ParentFailure) -> bool {
     matches!(
         failure.code.as_str(),

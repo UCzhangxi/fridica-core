@@ -48,6 +48,11 @@ pub struct Limits {
     pub report_fast_path: bool,
     /// Thread context a forked worker is given on its first job, in characters.
     pub worker_context_chars: usize,
+    /// Seconds between reads of a running job's progress file; 0 turns
+    /// interim progress notes off.
+    pub progress_interval: f64,
+    /// Characters per posted progress note; longer notes are cut with a marker.
+    pub progress_chars: usize,
 }
 impl Default for Limits {
     fn default() -> Self {
@@ -63,6 +68,8 @@ impl Default for Limits {
             reply_chars: 7000,
             report_fast_path: true,
             worker_context_chars: 12000,
+            progress_interval: 120.,
+            progress_chars: 1500,
         }
     }
 }

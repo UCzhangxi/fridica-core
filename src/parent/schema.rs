@@ -39,6 +39,8 @@ pub struct Choices {
     pub tags: Vec<String>,
     /// Files attached in this thread that a worker may be given.
     pub files: Vec<String>,
+    /// Linked threads (root timestamps) a hand-off may target.
+    pub threads: Vec<String>,
 }
 impl Choices {
     pub fn from_session(session: &Value) -> Self {
@@ -93,12 +95,28 @@ impl Choices {
             .filter_map(|f| f["id"].as_str())
             .map(String::from)
             .collect();
+        choices.threads = session["linked_threads"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|t| t["thread"].as_str())
+            .map(String::from)
+            .collect();
         for values in [&mut choices.fetch_repos, &mut choices.tags] {
             values.sort();
             values.dedup();
         }
         choices
     }
+}
+/// Hand-offs may target only the linked threads; with none, the list is empty.
+fn handoffs(threads: &[String]) -> Value {
+    if threads.is_empty() {
+        return json!({"type":"array","maxItems":0,"items":{}});
+    }
+    let item = object(json!({"thread":{"type":"string","enum":threads},
+        "kind":{"type":"string","enum":["context","post"]},"note":string(),"answers":strings()}));
+    json!({"type":"array","maxItems":3,"items":item})
 }
 pub fn decision(choices: &Choices) -> Value {
     let reply = object(
@@ -118,6 +136,7 @@ pub fn decision(choices: &Choices) -> Value {
         "worker_control":{"type":"array","items":object(json!({"worker_id":choice(&choices.controllable),"op":{"type":"string","enum":["interrupt","stop"]}}))},
         "context":object(json!({"machine":string(),"workspace":string(),"repo":string(),"branch":string()})),
         "note":object(json!({"kind":{"type":"string","enum":["result","question","status","ack","correction"]},"repo":string(),"assignee":string(),"next_step":string(),"blocker":string()})),"decisions":strings(),
-        "dispositions":{"type":"array","items":{"anyOf":[declined,deferred]}},"asks":{"type":"array","items":object(json!({"summary":string(),"due":{"type":"number"}}))},"reopen_blocked":{"type":"boolean"}}),
+        "dispositions":{"type":"array","items":{"anyOf":[declined,deferred]}},"asks":{"type":"array","items":object(json!({"summary":string(),"due":{"type":"number"}}))},"reopen_blocked":{"type":"boolean"},
+        "handoffs":handoffs(&choices.threads)}),
     )
 }

@@ -152,6 +152,12 @@ pub enum Failure {
     Refusal,
     Cancelled,
     Interrupted,
+    /// The backend's usage limit stopped the turn. Temporary: retry after
+    /// `retry_at` (Unix seconds) when the backend said, never at once.
+    RateLimited {
+        #[serde(default)]
+        retry_at: Option<u64>,
+    },
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkerFailure {

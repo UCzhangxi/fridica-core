@@ -98,6 +98,9 @@ pub struct ContextBundle {
     pub results: Vec<PriorResult>,
     pub files: Vec<FileRef>,
     pub github: Vec<Value>,
+    /// Linked threads of the channel (`session.linked_threads`), each reduced
+    /// to its state: thread, status, summary, latest decisions, jobs.
+    pub linked: Vec<Value>,
     /// Sections cut to fit the budget.
     pub truncated: Vec<String>,
 }
@@ -110,6 +113,7 @@ const RESULTS_KEPT: usize = 8;
 const RESULT_SUMMARY_CAP: usize = 600;
 const FILES_KEPT: usize = 20;
 const GITHUB_CAP: usize = 1500;
+const LINKED_CAP: usize = 3000;
 /// Fixed headers and labels rendering adds on top of the bundled text.
 pub const RENDER_OVERHEAD: usize = 800;
 
@@ -126,9 +130,9 @@ fn text(value: &Value) -> &str {
 }
 
 /// The snapshot of the delegating turn, from an allow-list of request and
-/// decision fields: thread state, the conversation, earlier results, files
-/// and cached GitHub state. Nothing from machines, other threads, linked
-/// messages, obligations or repair rounds; nothing from configuration.
+/// decision fields: thread state, the conversation, earlier results, files,
+/// cached GitHub state and the linked threads' state. Nothing from machines,
+/// linked messages, obligations or repair rounds; nothing from configuration.
 pub fn snapshot(request: &ParentRequest, decision: &Decision, budget: usize) -> ContextBundle {
     let session = &request.session;
     let mut truncated = vec![];
@@ -300,8 +304,33 @@ pub fn snapshot(request: &ParentRequest, decision: &Decision, budget: usize) -> 
         results,
         files,
         github,
+        linked: linked(&session["linked_threads"], &mut truncated),
         truncated,
     }
+}
+
+/// Each linked thread's state, whole threads only, within `LINKED_CAP`.
+fn linked(threads: &Value, truncated: &mut Vec<String>) -> Vec<Value> {
+    let mut kept = vec![];
+    let mut used = 0;
+    for t in threads.as_array().into_iter().flatten() {
+        let jobs: Vec<Value> = t["jobs"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|j| json!({"id":j["id"],"status":j["status"],"summary":j["summary"],"progress":j["progress"]}))
+            .collect();
+        let view = json!({"thread":t["thread"],"status":t["status"],"summary":t["summary"],
+            "decisions":t["decisions"],"jobs":jobs});
+        let size = view.to_string().chars().count();
+        if used + size > LINKED_CAP {
+            truncated.push("linked".into());
+            break;
+        }
+        used += size;
+        kept.push(view);
+    }
+    kept
 }
 
 fn newer(ts: &str, watermark: &str) -> bool {
@@ -311,9 +340,9 @@ fn newer(ts: &str, watermark: &str) -> bool {
     }
 }
 /// What changed between a worker's previous snapshot and the current one:
-/// messages after the previous watermark, new decisions, results, files and
-/// GitHub entries, changed summary, notes, status and context; the reply
-/// always.
+/// messages after the previous watermark, new decisions, results, files,
+/// GitHub entries and linked-thread states, changed summary, notes, status and
+/// context; the reply always.
 pub fn delta(previous: &ContextBundle, current: &ContextBundle) -> ContextBundle {
     let differs = |a: &str, b: &str| if a != b { b.to_owned() } else { String::new() };
     ContextBundle {
@@ -360,6 +389,12 @@ pub fn delta(previous: &ContextBundle, current: &ContextBundle) -> ContextBundle
             .github
             .iter()
             .filter(|g| !previous.github.contains(g))
+            .cloned()
+            .collect(),
+        linked: current
+            .linked
+            .iter()
+            .filter(|t| !previous.linked.contains(t))
             .cloned()
             .collect(),
         truncated: current.truncated.clone(),
@@ -462,6 +497,12 @@ fn sections(lines: &mut Vec<String>, b: &ContextBundle, delta: bool) {
             entries.join(" ")
         ));
     }
+    if !b.linked.is_empty() {
+        lines.push(format!(
+            "Linked threads of this channel{now} (their own state, by root timestamp):"
+        ));
+        lines.extend(b.linked.iter().map(|t| format!("- {t}")));
+    }
 }
 fn footer(lines: &mut Vec<String>, b: &ContextBundle, end: &str) {
     if !b.truncated.is_empty() {
@@ -508,6 +549,7 @@ pub fn render_delta(previous_job: &str, update: &ContextBundle, since: &str) -> 
         || !update.results.is_empty()
         || !update.files.is_empty()
         || !update.github.is_empty()
+        || !update.linked.is_empty()
         || !update.status.is_empty()
         || !label(&update.context, "").is_empty();
     if !changed {
