@@ -32,6 +32,13 @@ mod ingest;
 pub use ingest::{Catchup, FileLookups, SocketStatus, Supervision, Watermark};
 mod ledger;
 pub use ledger::{Event, Health, Ledger};
+mod modules;
+pub use modules::{
+    ApprovalStart, Approvals, Archive, ArchiveHit, ClaimedJob, Completed, Completion,
+    ConfigurationIntent, ConfigurationIntents, Diagnostics, Fetches, Jobs, Links, NewApproval,
+    Outbox, PendingConfigurationEdit, PendingWorkerControl, PostOutcome, PreviousSnapshot,
+    Settlement, WorkSnapshot, WorkerControlIntent, WorkerControls,
+};
 mod views;
 pub use views::{Cell, MessageFiles, OwnerNotes, Row, Status, Views};
 
@@ -56,6 +63,15 @@ pub trait Unit:
     + ThreadControls
     + WorkerStops
     + LinkedThreads
+    + Outbox
+    + Jobs
+    + Approvals
+    + Fetches
+    + WorkerControls
+    + Diagnostics
+    + Links
+    + Archive
+    + ConfigurationIntents
 {
 }
 impl<T> Unit for T where
@@ -78,6 +94,15 @@ impl<T> Unit for T where
         + ThreadControls
         + WorkerStops
         + LinkedThreads
+        + Outbox
+        + Jobs
+        + Approvals
+        + Fetches
+        + WorkerControls
+        + Diagnostics
+        + Links
+        + Archive
+        + ConfigurationIntents
 {
 }
 
