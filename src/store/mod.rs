@@ -18,23 +18,13 @@ mod events;
 mod ledger;
 pub use events::{FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackNames};
 pub use ledger::{Event, Health, Ledger};
-mod report;
-pub use report::{ChannelActivity, PendingExport, Report, Reports};
 mod views;
 pub use views::{Cell, MessageFiles, OwnerNotes, Row, Status, Views};
 
 /// Everything one unit of work can do. Each area defines its traits in a
 /// module of its own and adds them here.
 pub trait Unit:
-    Ledger
-    + Health
-    + LedgerLookups
-    + SlackNames
-    + FeedLookups
-    + GithubPause
-    + Reports
-    + Views
-    + OwnerNotes
+    Ledger + Health + LedgerLookups + SlackNames + FeedLookups + GithubPause + Views + OwnerNotes
 {
 }
 impl<T> Unit for T where
@@ -45,7 +35,6 @@ impl<T> Unit for T where
         + SlackNames
         + FeedLookups
         + GithubPause
-        + Reports
         + Views
         + OwnerNotes
 {
