@@ -16,8 +16,8 @@ use std::{any::Any, future::Future, pin::Pin};
 
 mod actor;
 pub use actor::{
-    Arrival, Fence, Jobs, NewAsk, ObligationChange, ParentTurn, QueuedHandoff, Sessions,
-    Settlement, TriageSettlement, TurnClose, TurnFailure, TurnInput, TurnObligations, TurnRetry,
+    Arrival, Fence, NewAsk, ObligationChange, ParentTurn, QueuedHandoff, Sessions, Settlement,
+    TriageSettlement, TurnClose, TurnFailure, TurnInput, TurnJobs, TurnObligations, TurnRetry,
     Turns,
 };
 mod attention;
@@ -38,6 +38,13 @@ mod ingest;
 pub use ingest::{Catchup, FileLookups, SocketStatus, Supervision, Watermark};
 mod ledger;
 pub use ledger::{Event, Health, Ledger};
+mod modules;
+pub use modules::{
+    ApprovalSettlement, ApprovalStart, Approvals, Archive, ArchiveHit, ClaimedJob, Completed,
+    Completion, ConfigurationIntent, ConfigurationIntents, Diagnostics, Fetches, Jobs, Links,
+    NewApproval, Outbox, PendingConfigurationEdit, PendingWorkerControl, PostOutcome,
+    PreviousSnapshot, WorkSnapshot, WorkerControlIntent, WorkerControls,
+};
 mod neighbours;
 pub use neighbours::{
     DebriefOrigin, DebriefPost, DebriefTurn, Debriefs, InboxEntry, LastReply, ProgressNote,
@@ -76,8 +83,17 @@ pub trait Unit:
     + ThreadTurns
     + Turns
     + Sessions
+    + TurnJobs
     + Jobs
     + TurnObligations
+    + Outbox
+    + Approvals
+    + Fetches
+    + WorkerControls
+    + Diagnostics
+    + Links
+    + Archive
+    + ConfigurationIntents
 {
 }
 impl<T> Unit for T where
@@ -108,8 +124,17 @@ impl<T> Unit for T where
         + ThreadTurns
         + Turns
         + Sessions
+        + TurnJobs
         + Jobs
         + TurnObligations
+        + Outbox
+        + Approvals
+        + Fetches
+        + WorkerControls
+        + Diagnostics
+        + Links
+        + Archive
+        + ConfigurationIntents
 {
 }
 

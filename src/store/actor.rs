@@ -280,7 +280,7 @@ pub trait Sessions {
 }
 
 /// Jobs a committed turn reports on.
-pub trait Jobs {
+pub trait TurnJobs {
     /// The jobs were reported.
     fn mark_reported(&mut self, session: &str, jobs: &[Option<String>]) -> Result<()>;
     /// Whether the thread has a queued or running job.
