@@ -10,6 +10,38 @@ pub const SUMMARIZE_PROMPT: &str="Return only the WorkerResult JSON object for t
 pub fn schema() -> Value {
     serde_json::from_str(SCHEMA_JSON).expect("embedded worker schema")
 }
+/// The bare `annotations` entry of the schema and format note.
+const ANNOTATIONS: &str = r#""annotations":{"type":"object"}"#;
+/// `annotations` caps: at most 32 top-level keys and 8 KiB of compact JSON, so
+/// a host's fields stay small beside the 4000-character report.
+pub const ANNOTATIONS_KEYS: usize = 32;
+pub const ANNOTATIONS_BYTES: usize = 8192;
+fn annotations(sub: &Value) -> Value {
+    let mut sub = sub.clone();
+    if let Some(o) = sub.as_object_mut() {
+        o.entry("type").or_insert("object".into());
+    }
+    sub
+}
+/// The worker schema with the host's `annotations` sub-schema, if any, in
+/// place of the bare object; core never reads the fields it asks for.
+pub fn schema_with(annotations_schema: Option<&Value>) -> Value {
+    let mut s = schema();
+    if let Some(sub) = annotations_schema {
+        s["properties"]["annotations"] = annotations(sub);
+    }
+    s
+}
+/// `FORMAT_NOTE` with the same sub-schema, for one delegate's prompt.
+pub fn format_note(annotations_schema: Option<&Value>) -> String {
+    match annotations_schema {
+        Some(sub) => FORMAT_NOTE.replace(
+            ANNOTATIONS,
+            &format!(r#""annotations":{}"#, annotations(sub)),
+        ),
+        None => FORMAT_NOTE.into(),
+    }
+}
 fn text(v: &Value, limit: usize) -> String {
     v.as_str().unwrap_or("").chars().take(limit).collect()
 }
@@ -85,21 +117,14 @@ pub fn coerce(v: &Value) -> Option<WorkerResult> {
             .collect(),
         question: text(&v["question"], 2000),
         report: text(&v["report"], REPORT_LIMIT),
-        // Repaired field by field: an invalid verdict or note is dropped, the position kept.
-        stance: serde_json::from_value::<Position>(v["stance"]["position"].clone())
-            .ok()
-            .map(|position| Stance {
-                position,
-                verdict: serde_json::from_value(v["stance"]["verdict"].clone()).ok(),
-                notes: v["stance"]["notes"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter(|v| v.is_string())
-                    .take(30)
-                    .map(|v| text(v, 500))
-                    .collect(),
-            }),
+        // Kept or dropped whole: a non-object or one over the caps is dropped.
+        annotations: v["annotations"]
+            .as_object()
+            .filter(|m| {
+                m.len() <= ANNOTATIONS_KEYS
+                    && serde_json::to_string(m).is_ok_and(|s| s.len() <= ANNOTATIONS_BYTES)
+            })
+            .cloned(),
     })
 }
 struct Fence {
