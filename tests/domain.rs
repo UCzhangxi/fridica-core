@@ -435,7 +435,20 @@ fn worker_results_round_trip_with_and_without_a_stance() {
         .is_err());
     }
 
-    // The tolerant parser keeps a valid stance and drops an invalid one.
+    // The tolerant parser keeps a valid stance, drops an invalid position, and
+    // repairs field by field: a bad verdict is dropped and the position kept.
+    let parsed = result::parse(
+        "```json\n{\"status\":\"done\",\"summary\":\"ok\",\"stance\":{\"position\":\"revised\",\"verdict\":\"approve\",\"notes\":[\"n\",1]}}\n```",
+    )
+    .unwrap();
+    assert_eq!(
+        parsed.stance,
+        Some(Stance {
+            position: Position::Revised,
+            verdict: None,
+            notes: vec!["n".into()],
+        })
+    );
     let parsed = result::parse(
         "```json\n{\"status\":\"done\",\"summary\":\"ok\",\"stance\":{\"position\":\"agree\",\"verdict\":\"reject\"}}\n```",
     )

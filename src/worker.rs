@@ -69,6 +69,7 @@ pub struct WorkerResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stance: Option<Stance>,
 }
+/// The defaults for a missing stance are the driver's convention (fridica-core#1).
 impl WorkerResult {
     /// The stated position; a missing stance counts as `disagree`.
     pub fn position(&self) -> Position {
