@@ -14,6 +14,11 @@
 use anyhow::Result;
 use std::{any::Any, future::Future, pin::Pin};
 
+mod attention;
+pub use attention::{
+    ArrivedMessage, Backfill, Disposal, HistoricalMention, HistoricalObligation, Inbox, InboxItem,
+    Mention, MentionQuery, Obligations, QueuedAnswer, RecentReply, Replies, ReservedReply, Route,
+};
 mod events;
 mod ledger;
 pub use events::{FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackNames};
@@ -35,6 +40,9 @@ pub trait Unit:
     + Reports
     + Views
     + OwnerNotes
+    + Inbox
+    + Replies
+    + Obligations
 {
 }
 impl<T> Unit for T where
@@ -48,6 +56,9 @@ impl<T> Unit for T where
         + Reports
         + Views
         + OwnerNotes
+        + Inbox
+        + Replies
+        + Obligations
 {
 }
 

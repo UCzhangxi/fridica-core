@@ -34,6 +34,9 @@ pub trait LedgerLookups {
     /// Whether an `intake` of Slack event `event_id` was recorded at exactly
     /// `time` among the 1000 records before `seq`: a repeated delivery.
     fn has_recent_intake(&mut self, event_id: &str, seq: i64, time: f64) -> Result<bool>;
+    /// The payload (JSON text) of the applied historical mention review
+    /// recorded with this client ID, if any.
+    fn backfill_record(&mut self, client_id: &str) -> Result<Option<String>>;
 }
 
 /// An outbox post as the event feed names it.
