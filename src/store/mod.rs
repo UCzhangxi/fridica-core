@@ -32,6 +32,12 @@ mod ingest;
 pub use ingest::{Catchup, FileLookups, SocketStatus, Supervision, Watermark};
 mod ledger;
 pub use ledger::{Event, Health, Ledger};
+mod neighbours;
+pub use neighbours::{
+    DebriefOrigin, DebriefPost, DebriefTurn, Debriefs, InboxEntry, LastReply, ProgressNote,
+    ProgressState, ReplyEvidence, ResultSnapshots, Runtime, RuntimeStart, ThreadMemory,
+    ThreadTurns,
+};
 mod views;
 pub use views::{Cell, MessageFiles, OwnerNotes, Row, Status, Views};
 
@@ -56,6 +62,12 @@ pub trait Unit:
     + ThreadControls
     + WorkerStops
     + LinkedThreads
+    + Runtime
+    + ThreadMemory
+    + ResultSnapshots
+    + ReplyEvidence
+    + Debriefs
+    + ThreadTurns
 {
 }
 impl<T> Unit for T where
@@ -78,6 +90,12 @@ impl<T> Unit for T where
         + ThreadControls
         + WorkerStops
         + LinkedThreads
+        + Runtime
+        + ThreadMemory
+        + ResultSnapshots
+        + ReplyEvidence
+        + Debriefs
+        + ThreadTurns
 {
 }
 
