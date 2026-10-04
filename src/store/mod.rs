@@ -26,7 +26,7 @@
 //! The areas grow as Fridica's queries move behind them; until then the traits
 //! are unstable between minor versions.
 use anyhow::Result;
-use std::{any::Any, future::Future, pin::Pin};
+use std::{any::Any, future::Future, pin::Pin, sync::Arc};
 
 mod actor;
 pub use actor::{
@@ -173,6 +173,14 @@ pub trait Store: Send + Sync {
         F: FnOnce(&mut dyn Unit) -> Result<R> + Send + 'static,
     {
         transact(self, work)
+    }
+}
+
+/// A shared store is a store, so a component holding `Arc<dyn Store>` calls
+/// [`Store::transact`] on it like a concrete backend would.
+impl<S: Store + ?Sized> Store for Arc<S> {
+    fn run(&self, work: Work) -> Pending<'_> {
+        (**self).run(work)
     }
 }
 
