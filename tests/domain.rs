@@ -58,6 +58,7 @@ fn delegation_places_new_workers_only_where_allowed() {
             allowed,
             limits: &limits,
             machines: &machines,
+            roles: &[],
         })
     };
     let ids = SequenceIds::default();
@@ -109,6 +110,7 @@ fn delegations_fork_the_turn_by_default_and_fresh_carries_no_snapshot() {
         allowed: true,
         limits: &limits,
         machines: &machines,
+        roles: &[],
     });
     let decision: Decision = serde_json::from_value(json!({"summary":"Plume fit","delegations":[
         {"brief":"Run the checks","tags":["cpu"]},
@@ -145,6 +147,7 @@ fn a_fork_worker_delegation_needs_a_live_source_session_on_the_same_placement() 
         allowed: true,
         limits: &limits,
         machines: &machines,
+        roles: &[],
     });
     let mut request = request();
     request.session["work"]["workers"] = json!([
@@ -321,4 +324,138 @@ fn linked_threads_count_against_the_fork_budget() {
     let plain = snapshot(&without, &Decision::default(), 4000);
     assert!(with.history.len() < plain.history.len());
     assert!(render(&with).chars().count() <= 4000 + 2000);
+}
+
+/// Roles come from the host's scope (fridica#126): `general` always, others
+/// only when the scope lists them.
+#[test]
+fn delegation_roles_are_checked_against_the_scope() {
+    use fridica_core::parent::schema;
+    let (limits, machines) = (Limits::default(), registry());
+    let roles = ["referee".to_string()];
+    let decide = |role: &str, roles: &[String]| {
+        let decision: Decision = serde_json::from_value(
+            json!({"delegations":[{"brief":"Referee the draft","tags":["cpu"],"role":role}]}),
+        )
+        .unwrap();
+        let scope = Scope {
+            allowed: true,
+            limits: &limits,
+            machines: &machines,
+            roles,
+        };
+        prepare(
+            &decision,
+            &request(),
+            Some(scope),
+            Some(&SequenceIds::default()),
+        )
+    };
+    assert_eq!(
+        decide("referee", &roles).unwrap().workers[0].role,
+        "referee"
+    );
+    assert_eq!(decide("", &roles).unwrap().workers[0].role, "general");
+    assert_eq!(decide("general", &[]).unwrap().workers[0].role, "general");
+    for (role, roles) in [("implementer", &roles[..]), ("referee", &[])] {
+        let error = decide(role, roles).err().unwrap();
+        assert!(error.to_string().contains("invalid worker role"), "{error}");
+    }
+    let choices = schema::Choices {
+        roles: vec!["referee".into(), "general".into()],
+        ..Default::default()
+    };
+    let s = schema::decision(&choices);
+    let role = &s["properties"]["delegations"]["items"]["properties"]["role"]["enum"];
+    assert_eq!(role, &json!(["", "general", "referee"]));
+    let none = schema::decision(&schema::Choices::default());
+    let role = &none["properties"]["delegations"]["items"]["properties"]["role"]["enum"];
+    assert_eq!(role, &json!(["", "general"]));
+}
+
+/// A stance is optional: older workers omit it and the driver reads that as
+/// `disagree` / `return`; values outside the enums are rejected.
+#[test]
+fn worker_results_round_trip_with_and_without_a_stance() {
+    use fridica_core::worker::{Position, Stance, Verdict, WorkerResult};
+    let plain: WorkerResult =
+        serde_json::from_value(json!({"status":"done","summary":"ok"})).unwrap();
+    assert_eq!(plain.stance, None);
+    assert_eq!(
+        (plain.position(), plain.verdict()),
+        (Position::Disagree, Verdict::Return)
+    );
+    let value = serde_json::to_value(&plain).unwrap();
+    assert!(value.get("stance").is_none());
+    assert_eq!(
+        serde_json::from_value::<WorkerResult>(value).unwrap(),
+        plain
+    );
+
+    let with: WorkerResult = serde_json::from_value(json!({"status":"done","summary":"ok",
+        "stance":{"position":"revised","verdict":"pass","notes":["tightened the bound"]}}))
+    .unwrap();
+    assert_eq!(
+        with.stance,
+        Some(Stance {
+            position: Position::Revised,
+            verdict: Some(Verdict::Pass),
+            notes: vec!["tightened the bound".into()],
+        })
+    );
+    assert_eq!(
+        (with.position(), with.verdict()),
+        (Position::Revised, Verdict::Pass)
+    );
+    let back: WorkerResult = serde_json::from_value(serde_json::to_value(&with).unwrap()).unwrap();
+    assert_eq!(back, with);
+    let agree: WorkerResult = serde_json::from_value(
+        json!({"status":"done","summary":"ok","stance":{"position":"agree"}}),
+    )
+    .unwrap();
+    assert_eq!(
+        (agree.position(), agree.verdict()),
+        (Position::Agree, Verdict::Return)
+    );
+
+    for position in ["agree", "disagree", "revised"] {
+        assert!(serde_json::from_value::<Position>(json!(position)).is_ok());
+    }
+    for verdict in ["pass", "return", "reject"] {
+        assert!(serde_json::from_value::<Verdict>(json!(verdict)).is_ok());
+    }
+    for stance in [
+        json!({"position":"maybe"}),
+        json!({"position":"agree","verdict":"approve"}),
+        json!({"position":"Agree"}),
+    ] {
+        assert!(serde_json::from_value::<WorkerResult>(
+            json!({"status":"done","summary":"ok","stance":stance})
+        )
+        .is_err());
+    }
+
+    // The tolerant parser keeps a valid stance and drops an invalid one.
+    let parsed = result::parse(
+        "```json\n{\"status\":\"done\",\"summary\":\"ok\",\"stance\":{\"position\":\"agree\",\"verdict\":\"reject\"}}\n```",
+    )
+    .unwrap();
+    assert_eq!(
+        (parsed.position(), parsed.verdict()),
+        (Position::Agree, Verdict::Reject)
+    );
+    let parsed = result::parse(
+        "```json\n{\"status\":\"done\",\"summary\":\"ok\",\"stance\":{\"position\":\"maybe\"}}\n```",
+    )
+    .unwrap();
+    assert_eq!(parsed.stance, None);
+    let schema = result::schema();
+    assert_eq!(
+        schema["properties"]["stance"]["properties"]["verdict"]["enum"],
+        json!(["pass", "return", "reject"])
+    );
+    assert!(!schema["required"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("stance")));
 }

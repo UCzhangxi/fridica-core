@@ -85,6 +85,15 @@ pub fn coerce(v: &Value) -> Option<WorkerResult> {
             .collect(),
         question: text(&v["question"], 2000),
         report: text(&v["report"], REPORT_LIMIT),
+        stance: serde_json::from_value::<Stance>(v["stance"].clone())
+            .ok()
+            .map(|mut s| {
+                s.notes.truncate(30);
+                for note in &mut s.notes {
+                    *note = note.chars().take(500).collect();
+                }
+                s
+            }),
     })
 }
 struct Fence {

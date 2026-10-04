@@ -21,6 +21,8 @@ pub struct Scope<'a> {
     pub allowed: bool,
     pub limits: &'a Limits,
     pub machines: &'a Registry,
+    /// Worker roles the host defines; `general` is always valid.
+    pub roles: &'a [String],
 }
 #[derive(Default)]
 pub struct Work {
@@ -140,7 +142,7 @@ pub fn prepare(
             } else {
                 &d.role
             };
-            if !matches!(role, "general" | "implementer" | "reviewer" | "tester") {
+            if role != "general" && !scope.roles.iter().any(|r| r == role) {
                 bail!("invalid worker role");
             }
             serde_json::from_value::<WorkerRecord>(json!({"id":"", "session_id":session,

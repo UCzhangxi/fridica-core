@@ -41,6 +41,8 @@ pub struct Choices {
     pub files: Vec<String>,
     /// Linked threads (root timestamps) a hand-off may target.
     pub threads: Vec<String>,
+    /// Worker roles the host defines, besides `general`.
+    pub roles: Vec<String>,
 }
 impl Choices {
     pub fn from_session(session: &Value) -> Self {
@@ -119,11 +121,14 @@ fn handoffs(threads: &[String]) -> Value {
     json!({"type":"array","maxItems":3,"items":item})
 }
 pub fn decision(choices: &Choices) -> Value {
+    let roles: Vec<String> = std::iter::once("general".to_string())
+        .chain(choices.roles.iter().filter(|r| *r != "general").cloned())
+        .collect();
     let reply = object(
         json!({"send":{"type":"boolean"},"discussion":{"type":"string","enum":["ongoing","finished"]},"text":string(),"details":string(),"status":{"type":"string","enum":["complete","waiting","blocked"]},"answers":strings()}),
     );
     let delegation = object(
-        json!({"brief":string(),"worker_id":choice(&choices.delegable),"machine":string(),"workspace":string(),"backend":string(),"tags":{"type":"array","items":choice(&choices.tags)},"role":{"type":"string","enum":["general","implementer","reviewer","tester"]},"ephemeral":{"type":"boolean"},"deliverable":{"type":"string","enum":["report","markdown","figures_pdf"]},"fetch_repo":choice(&choices.fetch_repos),"fetch_ref":string(),"files":{"type":"array","items":choice(&choices.files)},"context":{"type":"string","enum":["fork","fresh","fork_worker"]},"fork_worker_id":choice(&choices.forkable)}),
+        json!({"brief":string(),"worker_id":choice(&choices.delegable),"machine":string(),"workspace":string(),"backend":string(),"tags":{"type":"array","items":choice(&choices.tags)},"role":choice(&roles),"ephemeral":{"type":"boolean"},"deliverable":{"type":"string","enum":["report","markdown","figures_pdf"]},"fetch_repo":choice(&choices.fetch_repos),"fetch_ref":string(),"files":{"type":"array","items":choice(&choices.files)},"context":{"type":"string","enum":["fork","fresh","fork_worker"]},"fork_worker_id":choice(&choices.forkable)}),
     );
     let declined = object(
         json!({"state":{"type":"string","enum":["declined"]},"id":string(),"reason":string()}),
