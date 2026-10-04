@@ -18,6 +18,12 @@ serde_json = "1"
 sha2 = "0.10"
 unicode-casefold = "0.2"
 uuid = { version = "1", features = ["v4", "serde"] }
+# Only for the `conformance` feature: it runs each check on a runtime of its own.
+tokio = { version = "1", features = ["rt"], optional = true }
+
+[features]
+# `store::conformance`: the storage contract's checks, for backends' tests.
+conformance = ["dep:tokio"]
 
 [lints.rust]
 unsafe_code = "forbid"

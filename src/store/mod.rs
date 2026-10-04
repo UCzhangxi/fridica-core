@@ -1,13 +1,27 @@
 //! The storage contract: what Fridica keeps, independent of how (fridica#117).
 //!
-//! A backend implements [`Store`] and every area trait for its [`Unit`]. Fridica
-//! runs all its reads and writes for one step through a unit of work
-//! ([`transact`](trait.Store.html#method.transact)): they commit together, or none
-//! of them does. Area methods take and return whole records or batches, so a
-//! unit of work makes no round trip per row.
+//! A backend implements [`Store::run`] and every area trait for its [`Unit`].
+//! Fridica runs all its reads and writes for one step through a unit of work
+//! ([`transact`](trait.Store.html#method.transact)):
+//!
+//! - **All or nothing.** What a unit wrote commits when it returns `Ok`; when it
+//!   returns `Err`, none of it does, and the error comes back as raised.
+//! - **One at a time.** Units are serialised, or isolated as if they were.
+//!
+//! Area methods take and return whole records or batches, so a unit of work
+//! makes no round trip per row.
 //!
 //! Recorded payloads and details are JSON text, kept byte for byte: the replay
-//! tapes compare them exactly.
+//! tapes compare them exactly. Order is part of the contract (the ledger's
+//! sequence numbers increase; each method says how its results are ordered).
+//! Errors are [`anyhow::Error`] with the backend's own error inside.
+//!
+//! Opening and locking a store, migrating it and the weekly archives are each
+//! backend's own API, outside the unit of work.
+//!
+//! With the `conformance` feature, `conformance` is the suite a backend runs
+//! from its tests (`fridica_core::conformance_tests!`) to check all of this
+//! through the traits alone.
 //!
 //! The areas grow as Fridica's queries move behind them; until then the traits
 //! are unstable between minor versions.
@@ -21,6 +35,8 @@ pub use actor::{
     Turns,
 };
 mod attention;
+#[cfg(feature = "conformance")]
+pub mod conformance;
 pub use attention::{
     ArrivedMessage, Backfill, Disposal, HistoricalMention, HistoricalObligation, Inbox, InboxItem,
     Mention, MentionQuery, Obligations, QueuedAnswer, RecentReply, Replies, ReservedReply, Route,
