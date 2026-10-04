@@ -24,6 +24,19 @@ pub trait SlackNames {
     fn user_names(&mut self) -> Result<Option<String>>;
     /// Replace the recorded member names with `users` (JSON text).
     fn keep_user_names(&mut self, users: &str) -> Result<()>;
+    /// Record the bot's identity as Slack reported it at connect.
+    fn keep_identity(&mut self, identity: &SlackIdentity) -> Result<()>;
+}
+
+/// The bot's identity as Slack reports it when Socket Mode connects.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SlackIdentity {
+    /// The granted scopes, comma-separated, or `unknown`.
+    pub scopes: String,
+    /// JSON text: configured channel IDs to names.
+    pub channels: String,
+    /// The workspace's name.
+    pub workspace: String,
 }
 
 /// Lookups in the replay ledger beyond reading it in order.
@@ -34,6 +47,9 @@ pub trait LedgerLookups {
     /// Whether an `intake` of Slack event `event_id` was recorded at exactly
     /// `time` among the 1000 records before `seq`: a repeated delivery.
     fn has_recent_intake(&mut self, event_id: &str, seq: i64, time: f64) -> Result<bool>;
+    /// The context (JSON text) of the latest complete
+    /// `parent_attachment_result` recorded for `key`.
+    fn attachment_context(&mut self, key: &str) -> Result<Option<String>>;
 }
 
 /// An outbox post as the event feed names it.

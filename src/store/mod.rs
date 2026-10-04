@@ -16,7 +16,11 @@ use std::{any::Any, future::Future, pin::Pin};
 
 mod events;
 mod ledger;
-pub use events::{FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackNames};
+pub use events::{
+    FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackIdentity, SlackNames,
+};
+mod ingest;
+pub use ingest::{Catchup, FileLookups, SocketStatus, Supervision, Watermark};
 pub use ledger::{Event, Health, Ledger};
 mod report;
 pub use report::{ChannelActivity, PendingExport, Report, Reports};
@@ -35,6 +39,10 @@ pub trait Unit:
     + Reports
     + Views
     + OwnerNotes
+    + Catchup
+    + SocketStatus
+    + FileLookups
+    + Supervision
 {
 }
 impl<T> Unit for T where
@@ -48,6 +56,10 @@ impl<T> Unit for T where
         + Reports
         + Views
         + OwnerNotes
+        + Catchup
+        + SocketStatus
+        + FileLookups
+        + Supervision
 {
 }
 
