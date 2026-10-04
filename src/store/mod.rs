@@ -18,11 +18,13 @@ mod ledger;
 pub use ledger::{Event, Health, Ledger};
 mod report;
 pub use report::{ChannelActivity, PendingExport, Report, Reports};
+mod views;
+pub use views::{Cell, MessageFiles, OwnerNotes, Row, Status, Views};
 
 /// Everything one unit of work can do. Each area defines its traits in a
 /// module of its own and adds them here.
-pub trait Unit: Ledger + Health + Reports {}
-impl<T> Unit for T where T: ?Sized + Ledger + Health + Reports {}
+pub trait Unit: Ledger + Health + Reports + Views + OwnerNotes {}
+impl<T> Unit for T where T: ?Sized + Ledger + Health + Reports + Views + OwnerNotes {}
 
 /// A unit of work, type-erased so [`Store`] stays object safe.
 pub type Work = Box<dyn FnOnce(&mut dyn Unit) -> Result<Box<dyn Any + Send>> + Send>;
