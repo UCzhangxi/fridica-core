@@ -85,6 +85,21 @@ pub fn coerce(v: &Value) -> Option<WorkerResult> {
             .collect(),
         question: text(&v["question"], 2000),
         report: text(&v["report"], REPORT_LIMIT),
+        // Repaired field by field: an invalid verdict or note is dropped, the position kept.
+        stance: serde_json::from_value::<Position>(v["stance"]["position"].clone())
+            .ok()
+            .map(|position| Stance {
+                position,
+                verdict: serde_json::from_value(v["stance"]["verdict"].clone()).ok(),
+                notes: v["stance"]["notes"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|v| v.is_string())
+                    .take(30)
+                    .map(|v| text(v, 500))
+                    .collect(),
+            }),
     })
 }
 struct Fence {
