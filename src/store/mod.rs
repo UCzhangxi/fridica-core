@@ -14,8 +14,13 @@
 use anyhow::Result;
 use std::{any::Any, future::Future, pin::Pin};
 
+mod controls;
 mod events;
 mod ledger;
+pub use controls::{
+    ControlState, LinkedJob, LinkedMessage, LinkedThread, LinkedThreads, OpenAsk, ResumePoint,
+    ThreadControls, WorkerStop, WorkerStops,
+};
 pub use events::{FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackNames};
 pub use ledger::{Event, Health, Ledger};
 mod report;
@@ -35,6 +40,9 @@ pub trait Unit:
     + Reports
     + Views
     + OwnerNotes
+    + ThreadControls
+    + WorkerStops
+    + LinkedThreads
 {
 }
 impl<T> Unit for T where
@@ -48,6 +56,9 @@ impl<T> Unit for T where
         + Reports
         + Views
         + OwnerNotes
+        + ThreadControls
+        + WorkerStops
+        + LinkedThreads
 {
 }
 
