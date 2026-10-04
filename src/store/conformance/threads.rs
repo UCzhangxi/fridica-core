@@ -1,17 +1,19 @@
 //! Threads: intake, replies and obligations, owner controls, worker stops,
 //! thread memory and a turn's life.
-use super::{arrived, column, message, parent_turn, session_post, text, Backend};
+use super::{arrived, message, parent_turn, session_post, Backend};
 use crate::store::{
-    Arrival, Backfill, Cell, Disposal, Fence, HistoricalMention, HistoricalObligation, InboxItem,
-    Mention, MentionQuery, NewAsk, ObligationChange, QueuedAnswer, QueuedHandoff, RecentReply,
-    ReservedReply, Route, Row, Settlement, Store, TriageSettlement, TurnClose, TurnFailure,
+    ActivityView, Arrival, Backfill, Disposal, Fence, HistoricalMention, HistoricalObligation,
+    InboxItem, Mention, MentionQuery, NewAsk, ObligationChange, QueuedAnswer, QueuedHandoff,
+    RecentReply, ReservedReply, Route, Settlement, Store, TriageSettlement, TurnClose, TurnFailure,
     TurnRetry,
 };
 
-/// The rows of a view whose `action` column is `action`.
-fn actions<'a>(rows: &'a [Row], action: &'a str) -> impl Iterator<Item = &'a Row> + 'a {
-    rows.iter()
-        .filter(move |row| column(row, "action") == text(action))
+/// The audit entries whose action is `action`.
+fn actions<'a>(
+    entries: &'a [ActivityView],
+    action: &'a str,
+) -> impl Iterator<Item = &'a ActivityView> + 'a {
+    entries.iter().filter(move |entry| entry.action == action)
 }
 
 /// A message is kept once (its meta byte for byte), a thread opened once,
@@ -47,8 +49,8 @@ pub async fn intake_keeps_messages_once_and_claims_one_item_at_a_time<B: Backend
         .await
         .unwrap();
     assert_eq!(messages.len(), 1);
-    assert_eq!(column(&messages[0], "meta_json"), text(r#"{"b":1,"a":2}"#));
-    assert_eq!(column(&thread.unwrap(), "created"), Cell::Real(2.0));
+    assert_eq!(messages[0].meta_json.as_deref(), Some(r#"{"b":1,"a":2}"#));
+    assert_eq!(thread.unwrap().created, 2.0);
 }
 
 /// A reservation counts against the thread's replies; an answer is recorded
@@ -130,8 +132,8 @@ pub async fn a_reserved_reply_is_answered_once_its_obligations_are_open<B: Backe
         .transact(|u| Ok((u.thread_posts("T:C:1.0")?, u.thread("T:C:1.0")?.unwrap())))
         .await
         .unwrap();
-    assert_eq!(column(&posts[0], "answers_json"), text(r#"["o1"]"#));
-    assert_eq!(column(&thread, "throttled_until"), Cell::Real(50.0));
+    assert_eq!(posts[0].answers_json, r#"["o1"]"#);
+    assert_eq!(thread.throttled_until, 50.0);
 }
 
 /// A signal opens once, is queued once per due time, and is disposed once,
@@ -172,14 +174,11 @@ pub async fn obligations_are_signalled_disposed_and_queued_when_due<B: Backend>(
     assert_eq!((queued, again, state.as_str()), (1, 0, "declined"));
     let activity = store.transact(|u| u.activity(100)).await.unwrap();
     let audit = actions(&activity, "obligation.disposition")
-        .map(|row| (column(row, "details_json"), column(row, "actor")))
+        .map(|entry| (entry.details_json.as_str(), entry.actor.as_str()))
         .collect::<Vec<_>>();
     assert_eq!(
         audit,
-        [(
-            text(r#"{"kind":"declined","reason":"no"}"#),
-            text(r#""owner""#)
-        )]
+        [(r#"{"kind":"declined","reason":"no"}"#, r#""owner""#)]
     );
 }
 
@@ -262,15 +261,15 @@ pub async fn a_historical_review_opens_deferred_mentions_and_is_found_by_client_
     assert_eq!(
         obligations
             .iter()
-            .map(|row| column(row, "state"))
+            .map(|obligation| obligation.state.as_str())
             .collect::<Vec<_>>(),
-        [text("deferred")]
+        ["deferred"]
     );
     assert_eq!(
         actions(&activity, "obligations.backfill")
-            .map(|row| column(row, "details_json"))
+            .map(|entry| entry.details_json.as_str())
             .collect::<Vec<_>>(),
-        [text(r#"{"count":1}"#)]
+        [r#"{"count":1}"#]
     );
 }
 
@@ -352,12 +351,8 @@ pub async fn thread_controls_record_their_effects<B: Backend>() {
         .await
         .unwrap();
     assert_eq!(
-        (
-            column(&thread, "status"),
-            column(&thread, "reset_at"),
-            column(&thread, "turns")
-        ),
-        (text("complete"), Cell::Real(2.5), Cell::Integer(0))
+        (thread.status.as_str(), thread.reset_at, thread.turns),
+        ("complete", 2.5, 0)
     );
     assert_eq!(actions(&activity, "thread.resume").count(), 1);
 
@@ -389,7 +384,7 @@ pub async fn thread_controls_record_their_effects<B: Backend>() {
         .await
         .unwrap();
     assert_eq!(found, Some((id, String::new())));
-    assert_eq!(column(&text_after[0], "text"), text(""));
+    assert_eq!(text_after[0].text, "");
     assert!(thread.is_some());
 }
 
@@ -487,11 +482,8 @@ pub async fn thread_memory_keeps_decisions_and_parent_notes<B: Backend>() {
     let activity = store.transact(|u| u.activity(10)).await.unwrap();
     let audit = actions(&activity, "notes.write").collect::<Vec<_>>();
     assert_eq!(audit.len(), 2);
-    assert_eq!(column(audit[1], "actor"), text("parent"));
-    let Cell::Text(details) = column(audit[0], "details_json") else {
-        panic!("audit details are text")
-    };
-    let details: serde_json::Value = serde_json::from_str(&details).unwrap();
+    assert_eq!(audit[1].actor, "parent");
+    let details: serde_json::Value = serde_json::from_str(&audit[0].details_json).unwrap();
     assert_eq!(details, serde_json::json!({"revision":2,"inbox_id":3}));
     store
         .transact(|u| u.queue_post(&session_post("2:reply", "T:C:1", "reply", "hi", ""), 1.0))
@@ -626,21 +618,21 @@ pub async fn a_failed_or_rate_limited_turn_keeps_its_evidence<B: Backend>() {
         })
         .await
         .unwrap();
-    assert_eq!(column(&thread, "version"), Cell::Integer(1));
+    assert_eq!(thread.version, 1);
     assert_eq!(
         obligations
             .iter()
-            .map(|row| column(row, "id"))
+            .map(|obligation| obligation.id.as_str())
             .collect::<Vec<_>>(),
-        [text("inbox-failed:1")]
+        ["inbox-failed:1"]
     );
     // Newest first.
     assert_eq!(
         activity
             .iter()
-            .map(|row| column(row, "action"))
+            .map(|entry| entry.action.as_str())
             .collect::<Vec<_>>(),
-        [text("parent.rate_limited"), text("inbox.failed")]
+        ["parent.rate_limited", "inbox.failed"]
     );
 }
 
@@ -774,39 +766,33 @@ pub async fn a_committed_turn_records_its_effects_once_fenced<B: Backend>() {
         .unwrap();
     assert_eq!(
         (
-            column(&posts[0], "kind"),
-            column(&posts[0], "meta_json"),
-            column(&posts[0], "trigger_event")
+            posts[0].kind.as_str(),
+            posts[0].meta_json.as_deref(),
+            posts[0].trigger_event.as_str()
         ),
-        (text("report"), text(r#"{"v":2}"#), text("e1"))
+        ("report", Some(r#"{"v":2}"#), "e1")
     );
     assert_eq!(
         (
-            column(&thread, "context_json"),
-            column(&thread, "status"),
-            column(&thread, "turns"),
-            column(&thread, "version"),
-            column(&thread, "last_reply_hash")
+            thread.context_json.as_str(),
+            thread.status.as_str(),
+            thread.turns,
+            thread.version,
+            thread.last_reply_hash.as_str()
         ),
-        (
-            text(r#"{"repo":"x"}"#),
-            text("complete"),
-            Cell::Integer(1),
-            Cell::Integer(1),
-            text("h")
-        )
+        (r#"{"repo":"x"}"#, "complete", 1, 1, "h")
     );
     let mut states = obligations
         .iter()
-        .map(|row| (column(row, "id"), column(row, "state")))
+        .map(|obligation| (obligation.id.as_str(), obligation.state.as_str()))
         .collect::<Vec<_>>();
-    states.sort_by_key(|(id, _)| format!("{id:?}"));
+    states.sort();
     assert_eq!(
         states,
         [
-            (text("ask:1:0"), text("awaiting_delivery")),
-            (text("ask:1:1"), text("deferred")),
-            (text("streak:T:C:1.0:1"), text("open")),
+            ("ask:1:0", "awaiting_delivery"),
+            ("ask:1:1", "deferred"),
+            ("streak:T:C:1.0:1", "open"),
         ]
     );
     // Oldest first.
@@ -814,12 +800,12 @@ pub async fn a_committed_turn_records_its_effects_once_fenced<B: Backend>() {
         activity
             .iter()
             .rev()
-            .map(|row| column(row, "details_json"))
+            .map(|entry| entry.details_json.as_str())
             .collect::<Vec<_>>(),
         [
-            text(r#"{"queued":true}"#),
-            text(r#"{"queued":false}"#),
-            text(r#"{"reason":"parent_unavailable"}"#)
+            r#"{"queued":true}"#,
+            r#"{"queued":false}"#,
+            r#"{"reason":"parent_unavailable"}"#
         ]
     );
     // The hand-off waits in its target's inbox.

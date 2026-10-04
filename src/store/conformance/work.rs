@@ -1,5 +1,5 @@
 //! The outbox, jobs, approvals, fetches, worker controls and links.
-use super::{claim, column, message, post, text, thread_with_job, Backend};
+use super::{claim, message, post, thread_with_job, Backend};
 use crate::{
     delivery::DeliveryOutcome,
     parent::{ParentRequest, WorkerControl, WorkerOperation},
@@ -95,12 +95,9 @@ pub async fn the_outbox_queues_once_and_fences_delivery_attempts<B: Backend>() {
     assert_eq!(
         posts
             .iter()
-            .map(|row| (column(row, "state"), column(row, "error")))
+            .map(|post| (post.state.as_str(), post.error.as_str()))
             .collect::<Vec<_>>(),
-        [
-            (text("sent"), text("")),
-            (text("ambiguous"), text("daemon_stopped_during_send"))
-        ]
+        [("sent", ""), ("ambiguous", "daemon_stopped_during_send")]
     );
     assert_eq!(
         events.iter().map(|e| e.kind.as_str()).collect::<Vec<_>>(),
@@ -116,9 +113,9 @@ pub async fn the_outbox_queues_once_and_fences_delivery_attempts<B: Backend>() {
     // The sent reply is in the thread's history as Fridica's own message.
     let echo = messages
         .iter()
-        .find(|row| column(row, "ts") == text("5.000001"))
+        .find(|message| message.ts == "5.000001")
         .expect("the sent reply is kept as a message");
-    assert_eq!(column(echo, "source"), text("self"));
+    assert_eq!(echo.source, "self");
 }
 
 /// A post being sent is confirmed once.

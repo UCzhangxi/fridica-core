@@ -82,7 +82,7 @@ What a unit of work guarantees:
 Data rules:
 
 - **JSON is text, kept byte for byte.** Payloads, details and every `_json`
-  column of a view are stored and returned exactly as given (the replay tapes
+  field of a view record are stored and returned exactly as given (the replay tapes
   compare them), never re-serialised; key order and spacing survive.
 - **Order is part of the contract.** The ledger's sequence numbers increase;
   each method's doc says how its results are ordered (oldest first, newest

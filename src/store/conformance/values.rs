@@ -1,12 +1,9 @@
 //! The read models, recorded names and runtime values, catch-up, file
 //! lookups and the worker supervisor's writes.
-use super::{claim, column, message, session_post, text, Backend};
-use crate::store::{
-    Cell, NewApproval, RecordedNames, Row, RuntimeStart, SlackIdentity, Store, Watermark,
-};
+use super::{claim, message, session_post, Backend};
+use crate::store::{NewApproval, RecordedNames, RuntimeStart, SlackIdentity, Store, Watermark};
 
-/// Views list threads, messages and files as stored: columns keep their
-/// names, order and stored types, and JSON stays text.
+/// Views list threads, messages and files as stored, and JSON stays text.
 pub async fn views_read_threads_messages_and_files<B: Backend>() {
     let (_guard, store) = B::fresh().await;
     store
@@ -57,33 +54,26 @@ pub async fn views_read_threads_messages_and_files<B: Backend>() {
         })
         .await
         .unwrap();
-    let id = |row: &Row| row.0[0].1.clone();
     assert_eq!(
-        all.iter().map(id).collect::<Vec<_>>(),
-        [text("T:C:2"), text("T:C:1")]
+        all.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
+        ["T:C:2", "T:C:1"]
     );
     assert_eq!(paused.len(), 1);
     assert_eq!(attention, paused);
-    assert_eq!(
-        column(&paused[0], "control_detail_json"),
-        text(r#"{"b":1,"a":2}"#)
-    );
-    // Columns keep their names, order and stored types; JSON stays text.
+    assert_eq!(paused[0].control_detail_json, r#"{"b":1,"a":2}"#);
+    // Values are as stored; JSON stays text.
     let one = one.unwrap();
-    assert_eq!(one.0[0].0, "id");
-    assert_eq!(column(&one, "turns"), Cell::Integer(0));
-    assert_eq!(column(&one, "updated"), Cell::Real(5.0));
-    assert_eq!(column(&one, "decisions_json"), text("[]"));
+    assert_eq!(one.id, "T:C:1");
+    assert_eq!(one.turns, 0);
+    assert_eq!(one.updated, 5.0);
+    assert_eq!(one.decisions_json, "[]");
     assert_eq!(missing, None);
     // The last messages, oldest first.
     assert_eq!(
-        messages
-            .iter()
-            .map(|m| column(m, "text"))
-            .collect::<Vec<_>>(),
-        [text("two"), text("three")]
+        messages.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(),
+        ["two", "three"]
     );
-    assert_eq!(column(&messages[0], "meta_json"), Cell::Null);
+    assert_eq!(messages[0].meta_json, None);
     assert_eq!(status.runtime, None);
     assert_eq!(status.pending_approvals, 0);
     let (files, unknown, mentioning, latest, exists, approval) = store
@@ -276,7 +266,7 @@ pub async fn the_socket_status_is_kept_for_the_runtime_row<B: Backend>() {
         .unwrap()
         .runtime
         .unwrap();
-    assert_eq!(column(&runtime, "slack_status"), text("connected"));
+    assert_eq!(runtime.slack_status, "connected");
 }
 
 /// A start makes the runtime row `starting`; a restart replaces it.
@@ -309,8 +299,8 @@ pub async fn the_runtime_row_starts_and_restarts<B: Backend>() {
     };
     let row = runtime().await;
     assert_eq!(
-        (column(&row, "started_at"), column(&row, "slack_status")),
-        (Cell::Real(10.0), text("starting"))
+        (row.started_at, row.slack_status.as_str()),
+        (10.0, "starting")
     );
     assert_eq!(
         store.transact(|u| u.previous_slack_status()).await.unwrap(),
@@ -330,8 +320,8 @@ pub async fn the_runtime_row_starts_and_restarts<B: Backend>() {
         .unwrap();
     let row = runtime().await;
     assert_eq!(
-        (column(&row, "started_at"), column(&row, "slack_status")),
-        (Cell::Real(20.0), text("starting"))
+        (row.started_at, row.slack_status.as_str()),
+        (20.0, "starting")
     );
 }
 
@@ -531,8 +521,8 @@ pub async fn the_supervisor_interrupts_and_fingerprints_workers<B: Backend>() {
     assert_eq!(w2.backend_session_id, "s2");
     let interrupts = activity
         .iter()
-        .filter(|row| column(row, "action") == text("worker.interrupt"))
-        .map(|row| (column(row, "actor"), column(row, "target")))
+        .filter(|entry| entry.action == "worker.interrupt")
+        .map(|entry| (entry.actor.as_str(), entry.target.as_str()))
         .collect::<Vec<_>>();
-    assert_eq!(interrupts, [(text("owner"), text("w1"))]);
+    assert_eq!(interrupts, [("owner", "w1")]);
 }

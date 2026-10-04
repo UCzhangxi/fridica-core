@@ -26,7 +26,7 @@
 //! Each test runs its check on a current-thread tokio runtime of its own
 //! ([`run`]), so the backend's tests need no test macros. A check fails by
 //! panicking, like any test.
-use super::{ArrivedMessage, Cell, ClaimedJob, ParentTurn, Row, Store};
+use super::{ArrivedMessage, ClaimedJob, ParentTurn, Store};
 use crate::{
     config::{registry::Registry, Limits},
     delivery::Post,
@@ -252,20 +252,6 @@ async fn claim(store: &impl Store, id: &'static str, slot: usize) -> ClaimedJob 
         .await
         .unwrap()
         .expect("the job is admitted")
-}
-
-/// The named column of a view row.
-fn column(row: &Row, name: &str) -> Cell {
-    row.0
-        .iter()
-        .find(|(n, _)| n == name)
-        .unwrap_or_else(|| panic!("no column {name}"))
-        .1
-        .clone()
-}
-
-fn text(value: &str) -> Cell {
-    Cell::Text(value.into())
 }
 
 #[cfg(test)]

@@ -68,7 +68,11 @@ pub use neighbours::{
     ThreadTurns,
 };
 mod views;
-pub use views::{Cell, MessageFiles, OwnerNotes, Row, Status, Views};
+pub use views::{
+    ActivityView, ApprovalView, InstructionView, JobView, MachineLoad, MessageFiles, MessageView,
+    NotesView, ObligationView, OwnerNotes, PostView, RuntimeStatus, Status, ThreadView, Views,
+    WorkerMachine, WorkerView,
+};
 
 /// Everything one unit of work can do. Each area defines its traits in a
 /// module of its own and adds them here.
