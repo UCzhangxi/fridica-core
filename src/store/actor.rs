@@ -250,6 +250,15 @@ pub trait Turns {
     /// Record the message's verdict, finish the item and release its
     /// unposted reservation.
     fn finish_turn(&mut self, id: i64, event: Option<&str>, verdict: &str) -> Result<()>;
+    /// JSON text: this thread's refused post `outbox` (its kind, state,
+    /// rule code, text, trigger event and turn), or `None` when it cannot be
+    /// read. A refused text never became a message, so the turn that
+    /// rewrites it needs it (fridica#119).
+    fn refused_post(&mut self, session: &str, outbox: i64) -> Result<Option<String>>;
+    /// JSON text each: the thread's last three replies or reports that did
+    /// not reach Slack (failed or ambiguous), newest first, with their rule
+    /// codes and never their text.
+    fn undelivered_posts(&mut self, session: &str) -> Result<Vec<String>>;
 }
 
 /// Thread and channel state a committed turn changes.
