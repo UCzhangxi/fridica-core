@@ -14,6 +14,12 @@
 use anyhow::Result;
 use std::{any::Any, future::Future, pin::Pin};
 
+mod actor;
+pub use actor::{
+    Arrival, Fence, Jobs, NewAsk, ObligationChange, ParentTurn, QueuedHandoff, Sessions,
+    Settlement, TriageSettlement, TurnClose, TurnFailure, TurnInput, TurnObligations, TurnRetry,
+    Turns,
+};
 mod attention;
 pub use attention::{
     ArrivedMessage, Backfill, Disposal, HistoricalMention, HistoricalObligation, Inbox, InboxItem,
@@ -56,6 +62,10 @@ pub trait Unit:
     + ThreadControls
     + WorkerStops
     + LinkedThreads
+    + Turns
+    + Sessions
+    + Jobs
+    + TurnObligations
 {
 }
 impl<T> Unit for T where
@@ -78,6 +88,10 @@ impl<T> Unit for T where
         + ThreadControls
         + WorkerStops
         + LinkedThreads
+        + Turns
+        + Sessions
+        + Jobs
+        + TurnObligations
 {
 }
 
