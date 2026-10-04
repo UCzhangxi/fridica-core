@@ -50,6 +50,9 @@ pub trait LedgerLookups {
     /// The context (JSON text) of the latest complete
     /// `parent_attachment_result` recorded for `key`.
     fn attachment_context(&mut self, key: &str) -> Result<Option<String>>;
+    /// The payload (JSON text) of the applied historical mention review
+    /// recorded with this client ID, if any.
+    fn backfill_record(&mut self, client_id: &str) -> Result<Option<String>>;
 }
 
 /// An outbox post as the event feed names it.
