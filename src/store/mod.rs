@@ -19,6 +19,11 @@ pub use attention::{
     ArrivedMessage, Backfill, Disposal, HistoricalMention, HistoricalObligation, Inbox, InboxItem,
     Mention, MentionQuery, Obligations, QueuedAnswer, RecentReply, Replies, ReservedReply, Route,
 };
+mod controls;
+pub use controls::{
+    ControlState, LinkedJob, LinkedMessage, LinkedThread, LinkedThreads, OpenAsk, ResumePoint,
+    ThreadControls, WorkerStop, WorkerStops,
+};
 mod events;
 pub use events::{
     FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackIdentity, SlackNames,
@@ -48,6 +53,9 @@ pub trait Unit:
     + Inbox
     + Replies
     + Obligations
+    + ThreadControls
+    + WorkerStops
+    + LinkedThreads
 {
 }
 impl<T> Unit for T where
@@ -67,6 +75,9 @@ impl<T> Unit for T where
         + Inbox
         + Replies
         + Obligations
+        + ThreadControls
+        + WorkerStops
+        + LinkedThreads
 {
 }
 
