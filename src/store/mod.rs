@@ -15,8 +15,12 @@ use anyhow::Result;
 use std::{any::Any, future::Future, pin::Pin};
 
 mod events;
+pub use events::{
+    FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackIdentity, SlackNames,
+};
+mod ingest;
+pub use ingest::{Catchup, FileLookups, SocketStatus, Supervision, Watermark};
 mod ledger;
-pub use events::{FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackNames};
 pub use ledger::{Event, Health, Ledger};
 mod views;
 pub use views::{Cell, MessageFiles, OwnerNotes, Row, Status, Views};
@@ -24,7 +28,18 @@ pub use views::{Cell, MessageFiles, OwnerNotes, Row, Status, Views};
 /// Everything one unit of work can do. Each area defines its traits in a
 /// module of its own and adds them here.
 pub trait Unit:
-    Ledger + Health + LedgerLookups + SlackNames + FeedLookups + GithubPause + Views + OwnerNotes
+    Ledger
+    + Health
+    + LedgerLookups
+    + SlackNames
+    + FeedLookups
+    + GithubPause
+    + Views
+    + OwnerNotes
+    + Catchup
+    + SocketStatus
+    + FileLookups
+    + Supervision
 {
 }
 impl<T> Unit for T where
@@ -37,6 +52,10 @@ impl<T> Unit for T where
         + GithubPause
         + Views
         + OwnerNotes
+        + Catchup
+        + SocketStatus
+        + FileLookups
+        + Supervision
 {
 }
 
