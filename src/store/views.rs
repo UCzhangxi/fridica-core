@@ -38,6 +38,10 @@ pub struct ThreadView {
     /// JSON text: the owner's control detail.
     pub control_detail_json: String,
     pub throttled_until: f64,
+    /// Who drives the thread's work: `parent` (its parent turns) or
+    /// `external` (a driver on the control API).
+    #[serde(default)]
+    pub driver: String,
 }
 
 /// A message of a thread, oldest first.
@@ -118,6 +122,12 @@ pub struct JobView {
     pub work_item_id: String,
     pub target_sha: String,
     pub target_tree: String,
+    /// The role of the job's worker.
+    #[serde(default)]
+    pub role: String,
+    /// The job's correlation labels ([`Job::tags`](crate::worker::Job::tags)).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 /// An outbox post as the control API and the dashboard show it.

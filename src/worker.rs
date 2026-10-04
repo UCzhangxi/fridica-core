@@ -177,6 +177,12 @@ pub struct Job {
     pub retry_of: String,
     #[serde(default = "worker_clearance")]
     pub clearance: String,
+    /// Free correlation labels an external driver attaches to the job and
+    /// reads back on the job's views. Unlike a delegation's `tags`, they
+    /// never select a machine. Left out when empty, so jobs without labels
+    /// serialise as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 fn worker_clearance() -> String {
     "worker".into()

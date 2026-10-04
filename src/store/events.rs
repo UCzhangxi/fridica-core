@@ -64,6 +64,22 @@ pub struct OutboxPost {
     pub session: String,
 }
 
+/// A job as the event feed's `job_result` names it.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct FeedJob {
+    /// The thread it belongs to.
+    pub session: String,
+    pub worker: String,
+    /// Its worker's role.
+    pub role: String,
+    pub join_group: String,
+    pub attempt: i64,
+    pub status: String,
+    /// JSON text: the job's result, or `None`.
+    pub result_json: Option<String>,
+    pub error: String,
+}
+
 /// Single reads the event feed makes in the outbox, jobs and messages. Each
 /// moves to its own area's trait when that area moves behind the contract.
 pub trait FeedLookups {
@@ -71,6 +87,8 @@ pub trait FeedLookups {
     fn outbox_post(&mut self, id: i64) -> Result<Option<OutboxPost>>;
     /// The thread a job belongs to.
     fn job_session(&mut self, id: &str) -> Result<Option<String>>;
+    /// The job with this ID as the feed names it, with its worker's role.
+    fn feed_job(&mut self, id: &str) -> Result<Option<FeedJob>>;
     /// When the message with this Slack event ID first arrived.
     fn message_received_at(&mut self, event_id: &str) -> Result<Option<f64>>;
 }

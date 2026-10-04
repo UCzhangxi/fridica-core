@@ -77,6 +77,21 @@ pub trait ThreadControls {
     /// unreported result for it.
     fn resume_message(&mut self, session: &str, event: &str, payload: &str, now: f64)
         -> Result<()>;
+    /// Who drives the thread's work: `parent` or `external`. An unknown
+    /// thread is an error.
+    fn thread_driver(&mut self, session: &str) -> Result<String>;
+    /// Set who drives the thread's work (`parent` or `external`; anything
+    /// else is an error) for `actor` (JSON text). A change bumps the thread's
+    /// version, so a turn loaded under the old driver is stale, and is
+    /// audited as `driver`. Returns whether it changed. An unknown thread is
+    /// an error.
+    fn set_thread_driver(
+        &mut self,
+        session: &str,
+        driver: &str,
+        actor: &str,
+        now: f64,
+    ) -> Result<bool>;
     /// Audit a control (`actor` and `details` are JSON text).
     fn audit_control(
         &mut self,

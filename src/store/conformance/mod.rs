@@ -105,6 +105,7 @@ macro_rules! conformance_tests {
             a_failed_or_rate_limited_turn_keeps_its_evidence,
             a_committed_turn_records_its_effects_once_fenced,
             a_thread_without_refused_posts_has_none_to_rewrite,
+            a_thread_driver_is_set_audited_and_fences_turns,
             // work
             the_outbox_queues_once_and_fences_delivery_attempts,
             a_post_being_sent_is_confirmed_once,
@@ -113,6 +114,7 @@ macro_rules! conformance_tests {
             a_fetch_is_fenced_by_its_job_attempt,
             worker_controls_are_queued_current_and_completed,
             links_are_recorded_and_backfilled_once,
+            a_job_keeps_its_tags_and_the_feed_finds_it,
         );
     };
     (@checks $backend:ty; $($check:ident),* $(,)?) => {

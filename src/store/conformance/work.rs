@@ -439,3 +439,70 @@ pub async fn links_are_recorded_and_backfilled_once<B: Backend>() {
         [("T:C:2", "x#12")]
     );
 }
+
+/// A job keeps its correlation labels; the job and thread views show them
+/// with the worker's role, and the feed finds the job's group, worker, role
+/// and outcome.
+pub async fn a_job_keeps_its_tags_and_the_feed_finds_it<B: Backend>() {
+    let (_guard, store) = B::fresh().await;
+    store
+        .transact(|u| {
+            u.open_thread("T:C:1", "T", "C", "1", 1.0)?;
+            u.add_workers(
+                &serde_json::from_value::<Vec<_>>(serde_json::json!([{
+                    "id":"w1","session_id":"T:C:1","machine":"m","workspace":"/w",
+                    "backend":"claude","role":"auditor"
+                }]))?,
+                1.0,
+            )?;
+            u.queue_jobs(
+                &serde_json::from_value::<Vec<_>>(serde_json::json!([
+                    {"id":"j1","worker_id":"w1","session_id":"T:C:1","brief":"look",
+                     "join_group":"g1","tags":["ref-1","b"]},
+                    {"id":"j2","worker_id":"w1","session_id":"T:C:1","brief":"again",
+                     "join_group":"g2"}
+                ]))?,
+                2.0,
+            )
+        })
+        .await
+        .unwrap();
+    let (job, plain, views, feed, missing) = store
+        .transact(|u| {
+            Ok((
+                u.job_record("j1")?,
+                u.job_record("j2")?,
+                u.thread_jobs("T:C:1")?,
+                u.feed_job("j1")?,
+                u.feed_job("nope")?,
+            ))
+        })
+        .await
+        .unwrap();
+    assert_eq!(job.tags, ["ref-1", "b"]);
+    assert!(plain.tags.is_empty());
+    assert_eq!(
+        views
+            .iter()
+            .map(|j| (j.id.as_str(), j.role.as_str(), j.tags.clone()))
+            .collect::<Vec<_>>(),
+        [
+            ("j1", "auditor", vec!["ref-1".to_string(), "b".into()]),
+            ("j2", "auditor", vec![])
+        ]
+    );
+    assert_eq!(
+        feed,
+        Some(crate::store::FeedJob {
+            session: "T:C:1".into(),
+            worker: "w1".into(),
+            role: "auditor".into(),
+            join_group: "g1".into(),
+            attempt: 0,
+            status: "queued".into(),
+            result_json: None,
+            error: String::new(),
+        })
+    );
+    assert_eq!(missing, None);
+}

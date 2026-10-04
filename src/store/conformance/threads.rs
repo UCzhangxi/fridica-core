@@ -821,3 +821,51 @@ pub async fn a_thread_without_refused_posts_has_none_to_rewrite<B: Backend>() {
         .unwrap();
     assert_eq!((refused, undelivered), (None, vec![]));
 }
+
+/// A thread is driven by its parent until set otherwise; a change of driver
+/// bumps the thread's version (a turn loaded before it is stale), shows on
+/// its view and is audited once; an unknown driver or thread is an error.
+pub async fn a_thread_driver_is_set_audited_and_fences_turns<B: Backend>() {
+    let (_guard, store) = B::fresh().await;
+    let (initial, before) = store
+        .transact(|u| {
+            u.open_thread("T:C:1", "T", "C", "1", 1.0)?;
+            Ok((
+                u.thread_driver("T:C:1")?,
+                u.thread("T:C:1")?.unwrap().version,
+            ))
+        })
+        .await
+        .unwrap();
+    assert_eq!(initial, "parent");
+    let (changed, again, driver, view, invalid, unknown, missing, activity) = store
+        .transact(|u| {
+            let changed = u.set_thread_driver("T:C:1", "external", r#"{"kind":"owner"}"#, 2.0)?;
+            let again = u.set_thread_driver("T:C:1", "external", r#"{"kind":"owner"}"#, 3.0)?;
+            Ok((
+                changed,
+                again,
+                u.thread_driver("T:C:1")?,
+                u.thread("T:C:1")?.unwrap(),
+                u.set_thread_driver("T:C:1", "robot", "{}", 4.0).is_err(),
+                u.set_thread_driver("T:C:9", "parent", "{}", 4.0).is_err(),
+                u.thread_driver("T:C:9").is_err(),
+                u.activity(10)?,
+            ))
+        })
+        .await
+        .unwrap();
+    assert!(changed && !again);
+    assert_eq!(driver, "external");
+    assert_eq!(view.driver, "external");
+    assert_eq!(view.version, before + 1);
+    assert!(invalid && unknown && missing);
+    let audited: Vec<_> = actions(&activity, "driver").collect();
+    assert_eq!(audited.len(), 1);
+    assert_eq!(audited[0].target, "T:C:1");
+    assert_eq!(audited[0].actor, r#"{"kind":"owner"}"#);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&audited[0].details_json).unwrap(),
+        serde_json::json!({"from":"parent","to":"external"})
+    );
+}

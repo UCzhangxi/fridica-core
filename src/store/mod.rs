@@ -48,7 +48,8 @@ pub use controls::{
 };
 mod events;
 pub use events::{
-    FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackIdentity, SlackNames,
+    FeedJob, FeedLookups, GithubPause, LedgerLookups, OutboxPost, RecordedNames, SlackIdentity,
+    SlackNames,
 };
 mod ingest;
 pub use ingest::{Catchup, FileLookups, SocketStatus, Supervision, Watermark};
