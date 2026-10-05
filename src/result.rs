@@ -10,37 +10,55 @@ pub const SUMMARIZE_PROMPT: &str="Return only the WorkerResult JSON object for t
 pub fn schema() -> Value {
     serde_json::from_str(SCHEMA_JSON).expect("embedded worker schema")
 }
-/// The bare `annotations` entry of the schema and format note.
-const ANNOTATIONS: &str = r#""annotations":{"type":"object"}"#;
 /// `annotations` caps: at most 32 top-level keys and 8 KiB of compact JSON, so
 /// a host's fields stay small beside the 4000-character report.
 pub const ANNOTATIONS_KEYS: usize = 32;
 pub const ANNOTATIONS_BYTES: usize = 8192;
+/// The `annotations` entry for a host's sub-schema. Backends that enforce a
+/// structured output in strict mode (Codex) require every property to be
+/// listed in `required` and every object to forbid additional properties, so
+/// the entry is required and nullable (`null` when nothing applies), and the
+/// sub-schema is an object without additional properties unless it says
+/// otherwise. A host's own sub-schema must follow the same rules.
 fn annotations(sub: &Value) -> Value {
     let mut sub = sub.clone();
     if let Some(o) = sub.as_object_mut() {
-        o.entry("type").or_insert("object".into());
+        o.insert("type".into(), serde_json::json!(["object", "null"]));
+        o.entry("additionalProperties").or_insert(false.into());
+        o.entry("properties").or_insert(serde_json::json!({}));
+        o.entry("required").or_insert(serde_json::json!([]));
     }
     sub
 }
-/// The worker schema with the host's `annotations` sub-schema, if any, in
-/// place of the bare object; core never reads the fields it asks for.
+/// The worker schema, with the host's `annotations` sub-schema when one is
+/// given. Without one the schema has no `annotations` and is [`schema`]
+/// itself; core never reads the fields a host asks for.
 pub fn schema_with(annotations_schema: Option<&Value>) -> Value {
     let mut s = schema();
     if let Some(sub) = annotations_schema {
         s["properties"]["annotations"] = annotations(sub);
+        if let Some(required) = s["required"].as_array_mut() {
+            required.push("annotations".into());
+        }
     }
     s
 }
-/// `FORMAT_NOTE` with the same sub-schema, for one delegate's prompt.
+/// `FORMAT_NOTE` for the same schema: without a sub-schema it is
+/// `FORMAT_NOTE` itself; with one, the schema line includes `annotations` and
+/// a line says how to fill it.
 pub fn format_note(annotations_schema: Option<&Value>) -> String {
-    match annotations_schema {
-        Some(sub) => FORMAT_NOTE.replace(
-            ANNOTATIONS,
-            &format!(r#""annotations":{}"#, annotations(sub)),
-        ),
-        None => FORMAT_NOTE.into(),
+    let Some(sub) = annotations_schema else {
+        return FORMAT_NOTE.into();
+    };
+    let schema = serde_json::to_string(&schema_with(Some(sub))).expect("worker schema");
+    let mut lines: Vec<String> = FORMAT_NOTE.lines().map(str::to_owned).collect();
+    if let Some(line) = lines.get_mut(2) {
+        *line = schema;
     }
+    lines.push(
+        "- annotations: only the fields the schema above asks for, or null when none apply.".into(),
+    );
+    lines.join("\n")
 }
 fn text(v: &Value, limit: usize) -> String {
     v.as_str().unwrap_or("").chars().take(limit).collect()

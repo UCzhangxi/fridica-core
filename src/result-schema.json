@@ -140,9 +140,6 @@
     "report": {
       "type": "string",
       "maxLength": 4000
-    },
-    "annotations": {
-      "type": "object"
     }
   },
   "required": [

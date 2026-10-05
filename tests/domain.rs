@@ -442,32 +442,72 @@ fn the_tolerant_parser_drops_invalid_annotations_and_keeps_the_rest() {
     }
 }
 
-/// A host's `annotations` sub-schema appears in the worker schema and the
-/// format note; without one the schema asks for a bare, optional object.
+/// What a backend enforcing structured output in strict mode (Codex) accepts:
+/// every object lists all its properties as required and forbids others.
+fn assert_strict(schema: &serde_json::Value, at: &str) {
+    if let Some(properties) = schema["properties"].as_object() {
+        assert_eq!(schema["additionalProperties"], json!(false), "{at}");
+        let mut required: Vec<&str> = schema["required"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{at}: no required"))
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        let mut keys: Vec<&str> = properties.keys().map(String::as_str).collect();
+        required.sort();
+        keys.sort();
+        assert_eq!(required, keys, "{at}");
+        for (key, value) in properties {
+            assert_strict(value, &format!("{at}.{key}"));
+        }
+    }
+    if let Some(items) = schema.get("items") {
+        assert_strict(items, &format!("{at}[]"));
+    }
+}
+
+/// Without a host sub-schema the worker schema and format note are 0.4's and
+/// ask for no `annotations`; with one, `annotations` is a required, nullable
+/// object of that shape. Both forms are valid in strict mode.
 #[test]
 fn an_injected_annotations_schema_appears_in_the_worker_schema() {
     let bare = result::schema();
     assert_eq!(result::schema_with(None), bare);
-    assert_eq!(bare["properties"]["annotations"], json!({"type":"object"}));
-    assert!(!bare["required"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("annotations")));
+    assert!(bare["properties"].get("annotations").is_none());
+    assert_strict(&bare, "schema");
     assert_eq!(result::format_note(None), result::FORMAT_NOTE);
     let line = |note: &str| -> serde_json::Value {
         serde_json::from_str(note.lines().nth(2).unwrap()).unwrap()
     };
     assert_eq!(line(result::FORMAT_NOTE), bare);
 
-    let sub = json!({"additionalProperties":false,"properties":{"score":{"type":"integer"}},"required":["score"]});
+    let sub = json!({"properties":{"score":{"type":"integer"},"verdict":{"type":"string","enum":["pass","return"]}},"required":["score","verdict"]});
     let schema = result::schema_with(Some(&sub));
-    let mut expected = sub.clone();
-    expected["type"] = json!("object");
-    assert_eq!(schema["properties"]["annotations"], expected);
+    assert_strict(&schema, "schema_with");
+    let annotations = &schema["properties"]["annotations"];
+    assert_eq!(annotations["type"], json!(["object", "null"]));
+    assert_eq!(annotations["additionalProperties"], json!(false));
+    assert_eq!(annotations["properties"], sub["properties"]);
     let mut rest = schema.clone();
-    rest["properties"]["annotations"] = json!({"type":"object"});
+    rest["properties"]
+        .as_object_mut()
+        .unwrap()
+        .remove("annotations");
+    rest["required"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|k| k != "annotations");
     assert_eq!(rest, bare);
+    // An empty sub-schema is still a strict, nullable object.
+    assert_strict(&result::schema_with(Some(&json!({}))), "empty");
     let note = result::format_note(Some(&sub));
     assert_eq!(line(&note), schema);
-    assert!(note.ends_with(result::FORMAT_NOTE.lines().last().unwrap()));
+    assert!(note.starts_with(
+        &result::FORMAT_NOTE
+            .lines()
+            .take(2)
+            .collect::<Vec<_>>()
+            .join("\n")
+    ));
+    assert!(note.ends_with("or null when none apply."));
 }
